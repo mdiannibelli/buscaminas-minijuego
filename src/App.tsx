@@ -1,78 +1,25 @@
 import { useEffect, useState } from "react"
 import { Square } from "./components/Square"
+import { useStartGame } from "./hooks/start-game"
+import { regenerateGame } from "./hooks/regenerate-game"
 
 const GAME_STATUS = {
+  START: 'starting',
   PLAYING: 'is-playing',
   WON: 'won',
   LOST: 'lost'
 }
 
 function App() {
-  const $GRID_SIZE = 8
-  const [matrix, setMatrix] = useState(Array.from({length: $GRID_SIZE}, () => Array.from({length: $GRID_SIZE}, () => 0 as number | string)))
-  const [cellClicked, setCellClicked] = useState<string[]>([])
-  const [gameStatus, setGameStatus] = useState(GAME_STATUS.PLAYING)
+  const { matrix, setMatrix, bombsQuantity, setBombsQuantity , $GRID_SIZE } = useStartGame()
+  const [gameStatus, setGameStatus] = useState(GAME_STATUS.START)
   const [score, setScore] = useState(0)
-
-const $BOMBS_QUANTITY = 4
-//const MATRIX = Array.from({length: $GRID_SIZE}, () => Array.from({length: $GRID_SIZE}, () => 0 as number | string)) // Array containing 8 arrays with each value 0
-const MATCHES = [
-  [0, -1], 
-  [0, 1], 
-  [1, 0], 
-  [-1, 0], 
-  [1, -1], 
-  [-1, -1], 
-  [1, 1], 
-  [-1, 1]
-]
-
-
-
-// Random bombs
-useEffect(() => {
-  for(let i = 0; i < $BOMBS_QUANTITY; i++) {
-    const colRandom = Math.floor(Math.random() * $GRID_SIZE) // 0 to 7
-    const cellRandom = Math.floor(Math.random() * $GRID_SIZE)
-  
-    if(matrix[colRandom][cellRandom] !== 'B') {
-      matrix[colRandom][cellRandom] = 'B'
-    } //TODO If we have a 'B' re generate random col and cell
-  }
-}, [matrix])
-
-// [0, 0, 0, 0, 0, 0, 0, 0]
-// [0, X, 0, 0, 0, 0, 0, 0] // COL = 1 , CELL = 1 so find 8 matches
-// [0, 0, 0, 0, 0, 0, 0, 0]
-// [0, 0, 0, 0, 0, 0, 0, 0]
-// [0, 0, 0, 0, 0, 0, 0, 0]
-// [0, 0, 0, 0, 0, 0, 0, 0]
-// [0, 0, 0, 0, 0, 0, 0, 0]
-// [0, 0, 0, 0, 0, 0, 0, 0]
-
-// Get index of cell
-for(let colIndex = 0; colIndex < matrix.length; colIndex++) {
-  for(let celIndex = 0; celIndex < matrix[colIndex].length; celIndex++) {
-    // 0 1, 0 2, 0 3, etc
-    if(matrix[colIndex][celIndex] === 'B') continue // Skip for below
-    
-    let bombCount = 0
-
-    for(const match of MATCHES) {
-      if(matrix[colIndex + match[0]]?.[celIndex + match[1]] === 'B') {
-        bombCount++
-      }
-    }
-
-    //console.log(bombCount)
-
-    matrix[colIndex][celIndex] = bombCount
-  }
-}
+  const [cellClicked, setCellClicked] = useState<string[]>([])
 
   const handleClick = (colIndex:string, celIndex:string) => {
     const cellToAdd = `${colIndex}-${celIndex}`
-
+    
+    setGameStatus(GAME_STATUS.PLAYING)
     checkIfWeWon()
     checkIfWeFoundBomb(colIndex, celIndex)
     setCellClicked([...cellClicked, cellToAdd])
@@ -90,26 +37,44 @@ for(let colIndex = 0; colIndex < matrix.length; colIndex++) {
   }
 
   const checkIfWeWon = () => {
-    const clicksQuantity = Math.pow($GRID_SIZE, 2) - $BOMBS_QUANTITY
-    if(cellClicked.length === clicksQuantity && gameStatus === 'is-playing') {
+    const totalNoBombsCell = Math.pow($GRID_SIZE, 2) - bombsQuantity
+    if((cellClicked.length + 1) === totalNoBombsCell) {
       setGameStatus(GAME_STATUS.WON)
     }
   }
 
   const reloadGame = () => {
-    setGameStatus(GAME_STATUS.PLAYING)
     setScore(0)
     setMatrix(Array.from({length: $GRID_SIZE}, () => Array.from({length: $GRID_SIZE}, () => 0 as number | string)))
     setCellClicked([])
+    regenerateGame(bombsQuantity, setMatrix, setCellClicked, setScore);
+    setGameStatus(GAME_STATUS.START)
     //window.location.reload()
   }
+
+  const handleBombsQuantity = (e:React.ChangeEvent<HTMLSelectElement>) => {
+    const newsBombQuantity = parseInt(e.target.value)
+    setBombsQuantity(newsBombQuantity)
+  }
+
+  useEffect(() => {
+    regenerateGame(bombsQuantity, setMatrix, setCellClicked, setScore);
+    setGameStatus(GAME_STATUS.START)
+  }, [bombsQuantity, setMatrix]);
 
 
 
   return (
     <main className="min-h-screen flex flex-col justify-center items-center mt-6">
-      <h1 className="text-5xl text-white mb-8 uppercase font-bold">Buscaminas</h1>
-      <span className="text-lg text-white mb-4">Puntuación: <strong>{score}</strong></span>
+      <h1 className="text-5xl text-white mb-4 uppercase font-bold">Buscaminas</h1>
+      <span className="text-white text-xs mb-2">Seleccionar cantidad de bombas</span>
+      <select disabled={gameStatus !== 'starting'} onChange={handleBombsQuantity} name="difficulty" id="difficulty" className="bg-gray-800 border-2 border-gray-800 text-white mb-4 select-none outline-none">
+        <option value="2">2 bombas</option>
+        <option value="4">4 bombas</option>
+        <option value="8">8 bombas</option>
+        <option value="12">12 bombas</option>
+      </select>
+      <span className="text-lg text-white my-4">Puntuación: <strong>{score}</strong></span>
       {gameStatus === 'lost' &&
         <div className="flex flex-col">
           <h1 className="text-red-500 mb-4 text-2xl">Has perdido!</h1>
@@ -134,6 +99,7 @@ for(let colIndex = 0; colIndex < matrix.length; colIndex++) {
                 handleClick={handleClick} 
                 key={`${colIndex}-${cellIndex}`} 
                 gameStatus={gameStatus}
+                showAll={false} // show cells
                 keyToCheck={`${colIndex.toString()}-${cellIndex.toString()}`}/>
                 )}
             </article>
